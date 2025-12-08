@@ -39,6 +39,16 @@ type CacheEntry struct {
 
 // GetCacheEntry retrieves a cached entry if it's still valid
 func GetCacheEntry(cacheKey string) (string, error) {
+	return GetCacheEntryWithRefresh(cacheKey, false)
+}
+
+// GetCacheEntryWithRefresh retrieves a cached entry if it's still valid, optionally bypassing cache
+func GetCacheEntryWithRefresh(cacheKey string, refresh bool) (string, error) {
+	if refresh {
+		// Skip cache if refresh is requested
+		return "", nil
+	}
+
 	cacheDir, err := CacheDir()
 	if err != nil {
 		return "", err

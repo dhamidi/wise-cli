@@ -49,13 +49,18 @@ type Profile struct {
 
 // ListProfiles queries the Wise API for all profiles belonging to the user
 func ListProfiles(apiToken string) ([]Profile, error) {
+	return ListProfilesWithRefresh(apiToken, false)
+}
+
+// ListProfilesWithRefresh queries the Wise API for profiles, optionally bypassing cache
+func ListProfilesWithRefresh(apiToken string, refresh bool) ([]Profile, error) {
 	endpoint := "https://api.wise.com/v2/profiles"
 
 	// Generate cache key
 	cacheKey := generateCacheKey("profiles", "")
 
 	// Check cache first
-	if cached, err := config.GetCacheEntry(cacheKey); err == nil && cached != "" {
+	if cached, err := config.GetCacheEntryWithRefresh(cacheKey, refresh); err == nil && cached != "" {
 		var profiles []Profile
 		if err := json.Unmarshal([]byte(cached), &profiles); err == nil {
 			return profiles, nil

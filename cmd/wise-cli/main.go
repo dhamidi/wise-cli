@@ -15,6 +15,7 @@ import (
 
 var (
 	apiToken string
+	refresh  bool
 )
 
 func main() {
@@ -33,6 +34,7 @@ func main() {
 	}
 
 	rootCmd.PersistentFlags().StringVar(&apiToken, "token", tokenDefault, "Wise API token (or set WISE_API_TOKEN env var)")
+	rootCmd.PersistentFlags().BoolVar(&refresh, "refresh", false, "Force refresh cache, bypass cached responses")
 
 	rootCmd.AddCommand(loginCmd)
 	rootCmd.AddCommand(profilesCmd)
@@ -57,7 +59,7 @@ var profilesCmd = &cobra.Command{
 			return fmt.Errorf("API token required: set --token flag or WISE_API_TOKEN env var")
 		}
 
-		profiles, err := queries.ListProfiles(apiToken)
+		profiles, err := queries.ListProfilesWithRefresh(apiToken, refresh)
 		if err != nil {
 			return fmt.Errorf("failed to list profiles: %w", err)
 		}
@@ -107,7 +109,7 @@ var selectProfileCmd = &cobra.Command{
 
 		profileIdOrName := args[0]
 
-		profiles, err := queries.ListProfiles(apiToken)
+		profiles, err := queries.ListProfilesWithRefresh(apiToken, refresh)
 		if err != nil {
 			return fmt.Errorf("failed to list profiles: %w", err)
 		}
@@ -204,7 +206,7 @@ var recipientsCmd = &cobra.Command{
 			Size:      size,
 		}
 
-		recipients, err := queries.ListRecipients(apiToken, req)
+		recipients, err := queries.ListRecipientsWithRefresh(apiToken, req, refresh)
 		if err != nil {
 			return fmt.Errorf("failed to list recipients: %w", err)
 		}
@@ -244,7 +246,7 @@ var recipientsCmd = &cobra.Command{
 var newCmd = &cobra.Command{
 	Use:   "new",
 	Short: "Create new resources",
-	Long:  "Create new resources like quotes and transfers",
+	Long:  "Create new resources like quotes, transfers, and recipients",
 }
 
 var newTransferCmd = &cobra.Command{
@@ -545,6 +547,139 @@ var loginCmd = &cobra.Command{
 	},
 }
 
+var newRecipientCmd = &cobra.Command{
+	Use:   "recipient",
+	Short: "Create recipient account",
+	Long:  "Create a new recipient account for receiving payments",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if apiToken == "" {
+			return fmt.Errorf("API token required: set --token flag or WISE_API_TOKEN env var")
+		}
+
+		profileID, _ := cmd.Flags().GetInt("profile-id")
+		currency, _ := cmd.Flags().GetString("currency")
+		recipientType, _ := cmd.Flags().GetString("type")
+		accountHolderName, _ := cmd.Flags().GetString("account-holder-name")
+		ownedByCustomer, _ := cmd.Flags().GetBool("owned-by-customer")
+
+		if profileID == 0 {
+			return fmt.Errorf("profile-id is required")
+		}
+		if currency == "" {
+			return fmt.Errorf("currency is required")
+		}
+		if recipientType == "" {
+			return fmt.Errorf("type is required")
+		}
+		if accountHolderName == "" {
+			return fmt.Errorf("account-holder-name is required")
+		}
+
+		// Build details map based on recipient type and currency
+		details := make(map[string]interface{})
+
+		// Parse currency-specific details from flags
+		switch recipientType {
+		case "sort_code":
+			// GBP sort code recipient
+			sortCode, _ := cmd.Flags().GetString("sort-code")
+			accountNumber, _ := cmd.Flags().GetString("account-number")
+			legalType, _ := cmd.Flags().GetString("legal-type")
+
+			if sortCode == "" {
+				return fmt.Errorf("sort-code is required for sort_code type")
+			}
+			if accountNumber == "" {
+				return fmt.Errorf("account-number is required for sort_code type")
+			}
+
+			details["sortCode"] = sortCode
+			details["accountNumber"] = accountNumber
+			if legalType != "" {
+				details["legalType"] = legalType
+			}
+
+		case "iban":
+			// IBAN recipient
+			iban, _ := cmd.Flags().GetString("iban")
+			legalType, _ := cmd.Flags().GetString("legal-type")
+
+			if iban == "" {
+				return fmt.Errorf("iban is required for iban type")
+			}
+
+			details["iban"] = iban
+			if legalType != "" {
+				details["legalType"] = legalType
+			}
+
+		case "us":
+			// USD recipient
+			routingNumber, _ := cmd.Flags().GetString("routing-number")
+			accountNumber, _ := cmd.Flags().GetString("account-number")
+			accountType, _ := cmd.Flags().GetString("account-type")
+			legalType, _ := cmd.Flags().GetString("legal-type")
+
+			if routingNumber == "" {
+				return fmt.Errorf("routing-number is required for us type")
+			}
+			if accountNumber == "" {
+				return fmt.Errorf("account-number is required for us type")
+			}
+			if accountType == "" {
+				return fmt.Errorf("account-type is required for us type")
+			}
+
+			details["routingNumber"] = routingNumber
+			details["accountNumber"] = accountNumber
+			details["accountType"] = accountType
+			if legalType != "" {
+				details["legalType"] = legalType
+			}
+
+		case "email":
+			// Email recipient
+			email, _ := cmd.Flags().GetString("email")
+
+			if email == "" {
+				return fmt.Errorf("email is required for email type")
+			}
+
+			details["email"] = email
+		}
+
+		req := commands.NewRecipientRequest{
+			ProfileID:         profileID,
+			Currency:          currency,
+			Type:              recipientType,
+			AccountHolderName: accountHolderName,
+			OwnedByCustomer:   &ownedByCustomer,
+			Details:           details,
+		}
+
+		recipient, err := commands.NewRecipient(apiToken, req)
+		if err != nil {
+			return fmt.Errorf("failed to create recipient: %w", err)
+		}
+
+		// Format output
+		fmt.Println("Recipient Created:")
+		fmt.Println("==================")
+		fmt.Printf("ID:                %d\n", recipient.ID)
+		fmt.Printf("Name:              %s\n", recipient.Name.FullName)
+		fmt.Printf("Currency:          %s\n", recipient.Currency)
+		fmt.Printf("Country:           %s\n", recipient.Country)
+		fmt.Printf("Type:              %s\n", recipient.Type)
+		fmt.Printf("Legal Entity Type: %s\n", recipient.LegalEntityType)
+		fmt.Printf("Account Summary:   %s\n", recipient.AccountSummary)
+		fmt.Printf("Active:            %v\n", recipient.Active)
+		fmt.Printf("Owned by Customer: %v\n", recipient.OwnedByCustomer)
+		fmt.Printf("Hash:              %s\n", recipient.Hash)
+
+		return nil
+	},
+}
+
 var sendToCmd = &cobra.Command{
 	Use:   "send-to <recipient-name> <amount> <currency> [reference]",
 	Short: "Send money to a recipient",
@@ -599,10 +734,10 @@ var sendToCmd = &cobra.Command{
 
 		// Step 1: Find the recipient by name
 		fmt.Printf("Finding recipient: %s\n", recipientName)
-		recipients, err := queries.ListRecipients(apiToken, queries.ListRecipientsRequest{
+		recipients, err := queries.ListRecipientsWithRefresh(apiToken, queries.ListRecipientsRequest{
 			ProfileID: profileID,
 			Currency:  currency,
-		})
+		}, refresh)
 		if err != nil {
 			return fmt.Errorf("failed to list recipients: %w", err)
 		}
@@ -734,6 +869,7 @@ func init() {
 
 	newCmd.AddCommand(newQuoteCmd)
 	newCmd.AddCommand(newTransferCmd)
+	newCmd.AddCommand(newRecipientCmd)
 
 	newQuoteCmd.Flags().IntP("profile-id", "p", 0, "Profile ID (required)")
 	newQuoteCmd.MarkFlagRequired("profile-id")
@@ -767,4 +903,24 @@ func init() {
 	sendToCmd.Flags().StringP("reference", "r", "", "Payment reference (optional)")
 	sendToCmd.Flags().IntP("source-account", "s", 0, "Source account ID (optional)")
 	sendToCmd.Flags().BoolP("dry-run", "n", false, "Validate without creating quote or transfer")
+
+	// newRecipientCmd flags
+	newRecipientCmd.Flags().IntP("profile-id", "p", 0, "Profile ID (required)")
+	newRecipientCmd.MarkFlagRequired("profile-id")
+	newRecipientCmd.Flags().StringP("currency", "c", "", "Recipient currency code (required)")
+	newRecipientCmd.MarkFlagRequired("currency")
+	newRecipientCmd.Flags().StringP("type", "t", "", "Recipient type: sort_code, iban, us, email (required)")
+	newRecipientCmd.MarkFlagRequired("type")
+	newRecipientCmd.Flags().StringP("account-holder-name", "n", "", "Account holder full name (required)")
+	newRecipientCmd.MarkFlagRequired("account-holder-name")
+	newRecipientCmd.Flags().BoolP("owned-by-customer", "o", true, "Whether account is owned by customer (default: true)")
+
+	// Type-specific flags
+	newRecipientCmd.Flags().StringP("sort-code", "", "", "Sort code (required for sort_code type)")
+	newRecipientCmd.Flags().StringP("account-number", "", "", "Account number (required for sort_code/us type)")
+	newRecipientCmd.Flags().StringP("iban", "", "", "IBAN (required for iban type)")
+	newRecipientCmd.Flags().StringP("routing-number", "", "", "Routing number (required for us type)")
+	newRecipientCmd.Flags().StringP("account-type", "", "", "Account type: CHECKING or SAVINGS (required for us type)")
+	newRecipientCmd.Flags().StringP("email", "", "", "Email address (required for email type)")
+	newRecipientCmd.Flags().StringP("legal-type", "", "", "Legal type: PRIVATE or BUSINESS (optional)")
 }

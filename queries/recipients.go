@@ -87,81 +87,106 @@ type ListRecipientsResponse struct {
 
 // ListRecipients queries the Wise API for recipient accounts with caching
 func ListRecipients(apiToken string, req ListRecipientsRequest) ([]Recipient, error) {
-	params := url.Values{}
-	if req.ProfileID != 0 {
-		params.Set("profileId", fmt.Sprintf("%d", req.ProfileID))
-	}
-	if req.Currency != "" {
-		params.Set("currency", req.Currency)
-	}
-	if req.Active != nil {
-		params.Set("active", fmt.Sprintf("%v", *req.Active))
-	}
-	if req.Type != "" {
-		params.Set("type", req.Type)
-	}
-	if req.Size > 0 {
-		params.Set("size", fmt.Sprintf("%d", req.Size))
-	}
-	if req.SeekPos > 0 {
-		params.Set("seekPosition", fmt.Sprintf("%d", req.SeekPos))
-	}
-	if req.Sort != "" {
-		params.Set("sort", req.Sort)
+	return ListRecipientsWithRefresh(apiToken, req, false)
+}
+
+// ListRecipientsWithRefresh queries the Wise API for recipient accounts, optionally bypassing cache
+func ListRecipientsWithRefresh(apiToken string, req ListRecipientsRequest, refresh bool) ([]Recipient, error) {
+	var allRecipients []Recipient
+	seekPos := req.SeekPos
+	pageSize := req.Size
+	if pageSize == 0 {
+		pageSize = 100 // Default page size
 	}
 
-	endpoint := "https://api.wise.com/v2/accounts"
-	queryStr := params.Encode()
-	if queryStr != "" {
-		endpoint += "?" + queryStr
-	}
-
-	// Generate cache key based on query parameters
-	cacheKey := generateCacheKey("recipients", queryStr)
-
-	// Check cache first
-	if cached, err := config.GetCacheEntry(cacheKey); err == nil && cached != "" {
-		var apiResp ListRecipientsResponse
-		if err := json.Unmarshal([]byte(cached), &apiResp); err == nil {
-			return apiResp.Content, nil
+	for {
+		params := url.Values{}
+		if req.ProfileID != 0 {
+			params.Set("profileId", fmt.Sprintf("%d", req.ProfileID))
 		}
+		if req.Currency != "" {
+			params.Set("currency", req.Currency)
+		}
+		if req.Active != nil {
+			params.Set("active", fmt.Sprintf("%v", *req.Active))
+		}
+		if req.Type != "" {
+			params.Set("type", req.Type)
+		}
+		params.Set("size", fmt.Sprintf("%d", pageSize))
+		if seekPos > 0 {
+			params.Set("seekPosition", fmt.Sprintf("%d", seekPos))
+		}
+		if req.Sort != "" {
+			params.Set("sort", req.Sort)
+		}
+
+		endpoint := "https://api.wise.com/v2/accounts"
+		queryStr := params.Encode()
+		if queryStr != "" {
+			endpoint += "?" + queryStr
+		}
+
+		// Generate cache key based on query parameters
+		cacheKey := generateCacheKey("recipients", queryStr)
+
+		// Check cache first
+		if cached, err := config.GetCacheEntryWithRefresh(cacheKey, refresh); err == nil && cached != "" {
+			var apiResp ListRecipientsResponse
+			if err := json.Unmarshal([]byte(cached), &apiResp); err == nil {
+				allRecipients = append(allRecipients, apiResp.Content...)
+				if apiResp.SeekNext == 0 {
+					return allRecipients, nil
+				}
+				seekPos = apiResp.SeekNext
+				continue
+			}
+		}
+
+		httpReq, err := http.NewRequest("GET", endpoint, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create request: %w", err)
+		}
+
+		httpReq.Header.Set("Authorization", "Bearer "+apiToken)
+
+		client := &http.Client{}
+		httpResp, err := client.Do(httpReq)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch recipients: %w", err)
+		}
+		defer httpResp.Body.Close()
+
+		body, err := io.ReadAll(httpResp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response: %w", err)
+		}
+
+		if httpResp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("API error (status %d): %s", httpResp.StatusCode, string(body))
+		}
+
+		var apiResp ListRecipientsResponse
+		if err := json.Unmarshal(body, &apiResp); err != nil {
+			return nil, fmt.Errorf("failed to parse response: %w", err)
+		}
+
+		// Store in cache with HTTP headers
+		if err := config.SetCacheEntry(cacheKey, string(body), httpResp.Header); err != nil {
+			// Log error but don't fail the request
+			fmt.Fprintf(os.Stderr, "Warning: failed to cache recipients: %v\n", err)
+		}
+
+		allRecipients = append(allRecipients, apiResp.Content...)
+
+		// Check if there are more pages
+		if apiResp.SeekNext == 0 {
+			break
+		}
+		seekPos = apiResp.SeekNext
 	}
 
-	httpReq, err := http.NewRequest("GET", endpoint, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	httpReq.Header.Set("Authorization", "Bearer "+apiToken)
-
-	client := &http.Client{}
-	httpResp, err := client.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch recipients: %w", err)
-	}
-	defer httpResp.Body.Close()
-
-	body, err := io.ReadAll(httpResp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
-	}
-
-	if httpResp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API error (status %d): %s", httpResp.StatusCode, string(body))
-	}
-
-	var apiResp ListRecipientsResponse
-	if err := json.Unmarshal(body, &apiResp); err != nil {
-		return nil, fmt.Errorf("failed to parse response: %w", err)
-	}
-
-	// Store in cache with HTTP headers
-	if err := config.SetCacheEntry(cacheKey, string(body), httpResp.Header); err != nil {
-		// Log error but don't fail the request
-		fmt.Fprintf(os.Stderr, "Warning: failed to cache recipients: %v\n", err)
-	}
-
-	return apiResp.Content, nil
+	return allRecipients, nil
 }
 
 // generateCacheKey creates a cache key from endpoint and query string

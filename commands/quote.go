@@ -22,6 +22,7 @@ func NewQuote(apiToken string, req NewQuoteRequest) (*Quote, error) {
 	payload := map[string]interface{}{
 		"sourceCurrency": req.SourceCurrency,
 		"targetCurrency": req.TargetCurrency,
+		"preferredPayIn": "BALANCE",
 	}
 
 	if req.SourceAmount != nil {
