@@ -561,6 +561,7 @@ var sendToCmd = &cobra.Command{
 		sourceAccount, _ := cmd.Flags().GetInt("source-account")
 		reference, _ := cmd.Flags().GetString("reference")
 		customerTxID, _ := cmd.Flags().GetString("customer-transaction-id")
+		dryRun, _ := cmd.Flags().GetBool("dry-run")
 
 		// Use default profile if not specified
 		if profileID == 0 {
@@ -608,6 +609,30 @@ var sendToCmd = &cobra.Command{
 			return fmt.Errorf("recipient not found: %s", recipientName)
 		}
 		fmt.Printf("Found recipient: %s (ID: %d)\n", targetRecipient.Name.FullName, targetRecipient.ID)
+
+		if dryRun {
+			// Dry-run mode: show what would happen without creating anything
+			fmt.Println("\n📋 Dry-run mode - no resources will be created")
+			fmt.Println("============================================")
+			fmt.Printf("Recipient:               %s (ID: %d)\n", targetRecipient.Name.FullName, targetRecipient.ID)
+			fmt.Printf("Recipient Currency:      %s\n", targetRecipient.Currency)
+			fmt.Printf("Source Amount:           %.2f %s\n", amount, currency)
+			fmt.Printf("Profile ID:              %d\n", profileID)
+			fmt.Printf("Customer Transaction ID: %s\n", customerTxID)
+
+			if reference != "" {
+				fmt.Printf("Reference:               %s\n", reference)
+			}
+			if sourceAccount != 0 {
+				fmt.Printf("Source Account:          %d\n", sourceAccount)
+			}
+
+			fmt.Println("\nWhat would happen:")
+			fmt.Printf("- Create a quote for %.2f %s → %s\n", amount, currency, targetRecipient.Currency)
+			fmt.Println("- Create a transfer with the quote")
+			fmt.Println("\nRun without --dry-run to actually create the transfer")
+			return nil
+		}
 
 		// Step 2: Create a quote
 		fmt.Printf("Creating quote: %.2f %s\n", amount, currency)
@@ -731,4 +756,5 @@ func init() {
 	sendToCmd.Flags().StringP("customer-transaction-id", "c", "", "Customer transaction ID (optional, auto-generated if not set)")
 	sendToCmd.Flags().StringP("reference", "r", "", "Payment reference (optional)")
 	sendToCmd.Flags().IntP("source-account", "s", 0, "Source account ID (optional)")
+	sendToCmd.Flags().BoolP("dry-run", "n", false, "Validate without creating quote or transfer")
 }
