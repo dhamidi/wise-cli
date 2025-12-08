@@ -28,6 +28,36 @@ type Recipient struct {
 	Hash            string `json:"hash"`
 }
 
+// GetAccountNumber extracts account number from recipient details
+func (r *Recipient) GetAccountNumber() string {
+	if r.Details == nil {
+		return ""
+	}
+
+	detailsMap, ok := r.Details.(map[string]interface{})
+	if !ok {
+		return ""
+	}
+
+	// Try IBAN first (most common)
+	if iban, exists := detailsMap["iban"]; exists {
+		if str, ok := iban.(string); ok && str != "" {
+			return str
+		}
+	}
+
+	// Try other field names that might contain account number
+	for _, field := range []string{"accountNumber", "number", "accountId", "id", "bic"} {
+		if val, exists := detailsMap[field]; exists {
+			if str, ok := val.(string); ok && str != "" {
+				return str
+			}
+		}
+	}
+
+	return ""
+}
+
 type Name struct {
 	FullName   string `json:"fullName"`
 	GivenName  string `json:"givenName"`

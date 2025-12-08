@@ -215,20 +215,25 @@ var recipientsCmd = &cobra.Command{
 		}
 
 		// Format output
-		fmt.Printf("%-10s %-30s %-10s %-15s %-10s\n", "ID", "Name", "Currency", "Country", "Type")
-		fmt.Println(string(make([]byte, 80)))
+		fmt.Printf("%-10s %-30s %-10s %-15s %-10s %-20s\n", "ID", "Name", "Currency", "Country", "Type", "Account Number")
+		fmt.Println(string(make([]byte, 100)))
 
 		for _, r := range recipients {
 			name := r.Name.FullName
 			if name == "" {
 				name = "N/A"
 			}
-			fmt.Printf("%-10d %-30s %-10s %-15s %-10s\n",
+			accountNum := r.GetAccountNumber()
+			if accountNum == "" {
+				accountNum = "N/A"
+			}
+			fmt.Printf("%-10d %-30s %-10s %-15s %-10s %-20s\n",
 				r.ID,
 				name,
 				r.Currency,
 				r.Country,
 				r.Type,
+				accountNum,
 			)
 		}
 
