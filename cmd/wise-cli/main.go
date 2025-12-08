@@ -34,6 +34,7 @@ func main() {
 	rootCmd.PersistentFlags().StringVar(&apiToken, "token", tokenDefault, "Wise API token (or set WISE_API_TOKEN env var)")
 
 	rootCmd.AddCommand(loginCmd)
+	rootCmd.AddCommand(profilesCmd)
 	rootCmd.AddCommand(recipientsCmd)
 	rootCmd.AddCommand(quoteCmd)
 	rootCmd.AddCommand(newCmd)
@@ -43,6 +44,53 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+var profilesCmd = &cobra.Command{
+	Use:   "profiles",
+	Short: "List profiles",
+	Long:  "Fetch a list of all profiles belonging to your Wise account",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if apiToken == "" {
+			return fmt.Errorf("API token required: set --token flag or WISE_API_TOKEN env var")
+		}
+
+		profiles, err := queries.ListProfiles(apiToken)
+		if err != nil {
+			return fmt.Errorf("failed to list profiles: %w", err)
+		}
+
+		if len(profiles) == 0 {
+			fmt.Println("No profiles found")
+			return nil
+		}
+
+		// Format output
+		fmt.Printf("%-10s %-15s %-10s %-25s %-20s\n", "ID", "Type", "State", "Email", "Name")
+		fmt.Println(string(make([]byte, 85)))
+
+		for _, p := range profiles {
+			name := ""
+			if p.FirstName != nil && p.LastName != nil {
+				name = *p.FirstName + " " + *p.LastName
+			} else if p.BusinessName != nil {
+				name = *p.BusinessName
+			}
+			if name == "" {
+				name = "N/A"
+			}
+
+			fmt.Printf("%-10d %-15s %-10s %-25s %-20s\n",
+				p.ID,
+				p.Type,
+				p.CurrentState,
+				p.Email,
+				name,
+			)
+		}
+
+		return nil
+	},
 }
 
 var recipientsCmd = &cobra.Command{

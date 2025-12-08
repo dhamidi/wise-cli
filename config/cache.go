@@ -13,7 +13,7 @@ import (
 // CacheDir returns the cache directory for wise-cli
 func CacheDir() (string, error) {
 	var cacheHome string
-	if xdgCache := os.Getenv("XDG_CONFIG_HOME"); xdgCache != "" {
+	if xdgCache := os.Getenv("XDG_CACHE_HOME"); xdgCache != "" {
 		cacheHome = xdgCache
 	} else {
 		home, err := os.UserHomeDir()
