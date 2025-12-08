@@ -1,61 +1,50 @@
 package config
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 )
 
-const profileFileName = "selected-profile"
+const defaultProfileFileName = "default-profile"
 
-// SelectedProfile represents the cached selected profile
-type SelectedProfile struct {
-	ID   int    `json:"id"`
-	Name string `json:"name"`
-	Type string `json:"type"`
-}
-
-// SaveSelectedProfile saves the selected profile to the cache directory
-func SaveSelectedProfile(profile SelectedProfile) error {
+// SaveDefaultProfile saves the default profile ID
+func SaveDefaultProfile(profileID int) error {
 	cacheDir, err := CacheDir()
 	if err != nil {
 		return err
 	}
 
-	profilePath := filepath.Join(cacheDir, profileFileName)
-	jsonData, err := json.Marshal(profile)
-	if err != nil {
-		return fmt.Errorf("failed to marshal profile: %w", err)
-	}
-
-	if err := os.WriteFile(profilePath, jsonData, 0644); err != nil {
-		return fmt.Errorf("failed to save profile: %w", err)
+	profilePath := filepath.Join(cacheDir, defaultProfileFileName)
+	if err := os.WriteFile(profilePath, []byte(strconv.Itoa(profileID)), 0644); err != nil {
+		return fmt.Errorf("failed to save default profile: %w", err)
 	}
 
 	return nil
 }
 
-// LoadSelectedProfile loads the selected profile from the cache directory
-func LoadSelectedProfile() (*SelectedProfile, error) {
+// LoadDefaultProfile loads the default profile ID
+func LoadDefaultProfile() (int, error) {
 	cacheDir, err := CacheDir()
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 
-	profilePath := filepath.Join(cacheDir, profileFileName)
+	profilePath := filepath.Join(cacheDir, defaultProfileFileName)
 	data, err := os.ReadFile(profilePath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, nil
+			return 0, nil
 		}
-		return nil, fmt.Errorf("failed to read profile: %w", err)
+		return 0, fmt.Errorf("failed to read default profile: %w", err)
 	}
 
-	var profile SelectedProfile
-	if err := json.Unmarshal(data, &profile); err != nil {
-		return nil, fmt.Errorf("failed to parse profile: %w", err)
+	profileID, err := strconv.Atoi(strings.TrimSpace(string(data)))
+	if err != nil {
+		return 0, fmt.Errorf("invalid profile ID in config: %w", err)
 	}
 
-	return &profile, nil
+	return profileID, nil
 }

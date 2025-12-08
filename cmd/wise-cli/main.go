@@ -9,6 +9,7 @@ import (
 	"github.com/dhamidi/wise-cli/commands"
 	"github.com/dhamidi/wise-cli/config"
 	"github.com/dhamidi/wise-cli/queries"
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 )
 
@@ -172,15 +173,9 @@ var selectProfileCmd = &cobra.Command{
 			displayName = selectedProfile.Email
 		}
 
-		// Save selected profile
-		selectedData := config.SelectedProfile{
-			ID:   selectedProfile.ID,
-			Name: displayName,
-			Type: selectedProfile.Type,
-		}
-
-		if err := config.SaveSelectedProfile(selectedData); err != nil {
-			return fmt.Errorf("failed to save selected profile: %w", err)
+		// Save default profile
+		if err := config.SaveDefaultProfile(selectedProfile.ID); err != nil {
+			return fmt.Errorf("failed to save default profile: %w", err)
 		}
 
 		fmt.Printf("✓ Selected profile: %s (ID: %d, Type: %s)\n", displayName, selectedProfile.ID, selectedProfile.Type)
@@ -556,10 +551,10 @@ var sendToCmd = &cobra.Command{
 		}
 
 		recipientName := args[0]
-		amount, err := cmd.Flags().GetFloat64("amount")
-		if err == nil && amount == 0 {
-			// Try to parse from args if not provided as flag
-			fmt.Sscanf(args[1], "%f", &amount)
+		amount := 0.0
+		_, err := fmt.Sscanf(args[1], "%f", &amount)
+		if err != nil {
+			return fmt.Errorf("invalid amount: %w", err)
 		}
 		currency := args[2]
 		profileID, _ := cmd.Flags().GetInt("profile-id")
@@ -567,9 +562,23 @@ var sendToCmd = &cobra.Command{
 		reference, _ := cmd.Flags().GetString("reference")
 		customerTxID, _ := cmd.Flags().GetString("customer-transaction-id")
 
+		// Use default profile if not specified
 		if profileID == 0 {
-			return fmt.Errorf("profile-id is required")
+			defaultProfile, err := config.LoadDefaultProfile()
+			if err != nil {
+				return fmt.Errorf("failed to load default profile: %w", err)
+			}
+			if defaultProfile == 0 {
+				return fmt.Errorf("profile-id is required: use --profile-id or run 'wise-cli select-profile <id>'")
+			}
+			profileID = defaultProfile
 		}
+
+		// Auto-generate customer transaction ID if not provided
+		if customerTxID == "" {
+			customerTxID = uuid.New().String()
+		}
+
 		if amount == 0 {
 			return fmt.Errorf("amount is required and must be greater than 0")
 		}
@@ -718,10 +727,8 @@ func init() {
 	newTransferCmd.Flags().StringP("reference", "r", "", "Payment reference (optional)")
 	newTransferCmd.Flags().IntP("source-account", "s", 0, "Source account ID (optional)")
 
-	sendToCmd.Flags().IntP("profile-id", "p", 0, "Profile ID (required)")
-	sendToCmd.MarkFlagRequired("profile-id")
-	sendToCmd.Flags().StringP("customer-transaction-id", "c", "", "Customer transaction ID for idempotency (required)")
-	sendToCmd.MarkFlagRequired("customer-transaction-id")
+	sendToCmd.Flags().IntP("profile-id", "p", 0, "Profile ID (optional, uses default if not set)")
+	sendToCmd.Flags().StringP("customer-transaction-id", "c", "", "Customer transaction ID (optional, auto-generated if not set)")
 	sendToCmd.Flags().StringP("reference", "r", "", "Payment reference (optional)")
 	sendToCmd.Flags().IntP("source-account", "s", 0, "Source account ID (optional)")
 }
