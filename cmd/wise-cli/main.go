@@ -541,10 +541,10 @@ var loginCmd = &cobra.Command{
 }
 
 var sendToCmd = &cobra.Command{
-	Use:   "send-to <recipient-name> <amount> <currency>",
+	Use:   "send-to <recipient-name> <amount> <currency> [reference]",
 	Short: "Send money to a recipient",
-	Long:  "Send money to a recipient by name, creating a quote and transfer automatically",
-	Args:  cobra.ExactArgs(3),
+	Long:  "Send money to a recipient by name, creating a quote and transfer automatically. Optional reference can be provided as 4th argument or --reference flag.",
+	Args:  cobra.RangeArgs(3, 4),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if apiToken == "" {
 			return fmt.Errorf("API token required: set --token flag or WISE_API_TOKEN env var")
@@ -562,6 +562,11 @@ var sendToCmd = &cobra.Command{
 		reference, _ := cmd.Flags().GetString("reference")
 		customerTxID, _ := cmd.Flags().GetString("customer-transaction-id")
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
+
+		// If reference is provided as 4th argument, use that (unless flag overrides it)
+		if len(args) == 4 && reference == "" {
+			reference = args[3]
+		}
 
 		// Use default profile if not specified
 		if profileID == 0 {
