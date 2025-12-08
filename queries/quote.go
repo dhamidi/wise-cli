@@ -10,36 +10,36 @@ import (
 
 // Quote represents a Wise exchange quote
 type Quote struct {
-	ID                     string                  `json:"id"`
-	SourceAmount           float64                 `json:"sourceAmount"`
-	SourceCurrency         string                  `json:"sourceCurrency"`
-	TargetAmount           float64                 `json:"targetAmount"`
-	TargetCurrency         string                  `json:"targetCurrency"`
-	Rate                   float64                 `json:"rate"`
-	CreatedTime            string                  `json:"createdTime"`
-	RateExpirationTime     string                  `json:"rateExpirationTime"`
-	RateType               string                  `json:"rateType"`
-	PayOut                 string                  `json:"payOut"`
-	Profile                int                     `json:"profile"`
-	ProvidedAmountType     string                  `json:"providedAmountType"`
-	Status                 string                  `json:"status"`
-	ExpirationTime         string                  `json:"expirationTime"`
-	PaymentOptions         []PaymentOption         `json:"paymentOptions"`
-	Notices                []Notice                `json:"notices"`
-	PricingConfiguration   map[string]interface{} `json:"pricingConfiguration"`
+	ID                   string                 `json:"id"`
+	SourceAmount         float64                `json:"sourceAmount"`
+	SourceCurrency       string                 `json:"sourceCurrency"`
+	TargetAmount         float64                `json:"targetAmount"`
+	TargetCurrency       string                 `json:"targetCurrency"`
+	Rate                 float64                `json:"rate"`
+	CreatedTime          string                 `json:"createdTime"`
+	RateExpirationTime   string                 `json:"rateExpirationTime"`
+	RateType             string                 `json:"rateType"`
+	PayOut               string                 `json:"payOut"`
+	Profile              int                    `json:"profile"`
+	ProvidedAmountType   string                 `json:"providedAmountType"`
+	Status               string                 `json:"status"`
+	ExpirationTime       string                 `json:"expirationTime"`
+	PaymentOptions       []PaymentOption        `json:"paymentOptions"`
+	Notices              []Notice               `json:"notices"`
+	PricingConfiguration map[string]interface{} `json:"pricingConfiguration"`
 }
 
 type PaymentOption struct {
-	ID                      string      `json:"id"`
-	PayIn                   string      `json:"payIn"`
-	PayOut                  string      `json:"payOut"`
-	SourceAmount            float64     `json:"sourceAmount"`
-	TargetAmount            float64     `json:"targetAmount"`
-	Fee                     Fee         `json:"fee"`
-	EstimatedDelivery       string      `json:"estimatedDelivery"`
-	FormattedEstimatedDelivery string   `json:"formattedEstimatedDelivery"`
-	Disabled                bool        `json:"disabled"`
-	DisabledReason          *DisabledReason `json:"disabledReason"`
+	ID                         string          `json:"id"`
+	PayIn                      string          `json:"payIn"`
+	PayOut                     string          `json:"payOut"`
+	SourceAmount               float64         `json:"sourceAmount"`
+	TargetAmount               float64         `json:"targetAmount"`
+	Fee                        Fee             `json:"fee"`
+	EstimatedDelivery          string          `json:"estimatedDelivery"`
+	FormattedEstimatedDelivery string          `json:"formattedEstimatedDelivery"`
+	Disabled                   bool            `json:"disabled"`
+	DisabledReason             *DisabledReason `json:"disabledReason"`
 }
 
 type Fee struct {
@@ -56,9 +56,9 @@ type DisabledReason struct {
 }
 
 type Notice struct {
-	Text string `json:"text"`
+	Text string  `json:"text"`
 	Link *string `json:"link"`
-	Type string `json:"type"`
+	Type string  `json:"type"`
 }
 
 // GetQuoteRequest holds parameters for creating a quote

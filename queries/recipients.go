@@ -1,11 +1,16 @@
 package queries
 
 import (
+	"crypto/md5"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"strings"
+
+	"github.com/dhamidi/wise-cli/config"
 )
 
 // Recipient represents a Wise recipient account
@@ -50,7 +55,7 @@ type ListRecipientsResponse struct {
 	SeekCurrent int         `json:"seekPositionForCurrent"`
 }
 
-// ListRecipients queries the Wise API for recipient accounts
+// ListRecipients queries the Wise API for recipient accounts with caching
 func ListRecipients(apiToken string, req ListRecipientsRequest) ([]Recipient, error) {
 	params := url.Values{}
 	if req.ProfileID != 0 {
@@ -76,8 +81,20 @@ func ListRecipients(apiToken string, req ListRecipientsRequest) ([]Recipient, er
 	}
 
 	endpoint := "https://api.wise.com/v2/accounts"
-	if params.Encode() != "" {
-		endpoint += "?" + params.Encode()
+	queryStr := params.Encode()
+	if queryStr != "" {
+		endpoint += "?" + queryStr
+	}
+
+	// Generate cache key based on query parameters
+	cacheKey := generateCacheKey("recipients", queryStr)
+
+	// Check cache first
+	if cached, err := config.GetCacheEntry(cacheKey); err == nil && cached != "" {
+		var apiResp ListRecipientsResponse
+		if err := json.Unmarshal([]byte(cached), &apiResp); err == nil {
+			return apiResp.Content, nil
+		}
 	}
 
 	httpReq, err := http.NewRequest("GET", endpoint, nil)
@@ -108,5 +125,17 @@ func ListRecipients(apiToken string, req ListRecipientsRequest) ([]Recipient, er
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
 
+	// Store in cache with HTTP headers
+	if err := config.SetCacheEntry(cacheKey, string(body), httpResp.Header); err != nil {
+		// Log error but don't fail the request
+		fmt.Fprintf(os.Stderr, "Warning: failed to cache recipients: %v\n", err)
+	}
+
 	return apiResp.Content, nil
+}
+
+// generateCacheKey creates a cache key from endpoint and query string
+func generateCacheKey(endpoint, queryStr string) string {
+	hash := md5.Sum([]byte(queryStr))
+	return fmt.Sprintf("%s-%x.json", strings.TrimSuffix(endpoint, ".json"), hash)
 }
