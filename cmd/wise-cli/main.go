@@ -124,7 +124,7 @@ var selectProfileCmd = &cobra.Command{
 			}
 		}
 
-		// If not found by ID, try by name
+		// If not found by ID, try by exact name match
 		if selectedProfile == nil {
 			for i := range profiles {
 				name := ""
@@ -135,6 +135,23 @@ var selectProfileCmd = &cobra.Command{
 				}
 
 				if name == profileIdOrName {
+					selectedProfile = &profiles[i]
+					break
+				}
+			}
+		}
+
+		// If still not found, try by substring match
+		if selectedProfile == nil {
+			for i := range profiles {
+				name := ""
+				if profiles[i].FirstName != nil && profiles[i].LastName != nil {
+					name = *profiles[i].FirstName + " " + *profiles[i].LastName
+				} else if profiles[i].BusinessName != nil {
+					name = *profiles[i].BusinessName
+				}
+
+				if strings.Contains(strings.ToLower(name), strings.ToLower(profileIdOrName)) {
 					selectedProfile = &profiles[i]
 					break
 				}
