@@ -35,6 +35,7 @@ func main() {
 
 	rootCmd.AddCommand(loginCmd)
 	rootCmd.AddCommand(profilesCmd)
+	rootCmd.AddCommand(selectProfileCmd)
 	rootCmd.AddCommand(recipientsCmd)
 	rootCmd.AddCommand(quoteCmd)
 	rootCmd.AddCommand(newCmd)
@@ -89,6 +90,83 @@ var profilesCmd = &cobra.Command{
 			)
 		}
 
+		return nil
+	},
+}
+
+var selectProfileCmd = &cobra.Command{
+	Use:   "select-profile <profile-id-or-name>",
+	Short: "Select default profile",
+	Long:  "Select a profile by ID or name to use as the default profile",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if apiToken == "" {
+			return fmt.Errorf("API token required: set --token flag or WISE_API_TOKEN env var")
+		}
+
+		profileIdOrName := args[0]
+
+		profiles, err := queries.ListProfiles(apiToken)
+		if err != nil {
+			return fmt.Errorf("failed to list profiles: %w", err)
+		}
+
+		var selectedProfile *queries.Profile
+
+		// Try to parse as ID first
+		profileID := 0
+		if _, err := fmt.Sscanf(profileIdOrName, "%d", &profileID); err == nil && profileID > 0 {
+			for i := range profiles {
+				if profiles[i].ID == profileID {
+					selectedProfile = &profiles[i]
+					break
+				}
+			}
+		}
+
+		// If not found by ID, try by name
+		if selectedProfile == nil {
+			for i := range profiles {
+				name := ""
+				if profiles[i].FirstName != nil && profiles[i].LastName != nil {
+					name = *profiles[i].FirstName + " " + *profiles[i].LastName
+				} else if profiles[i].BusinessName != nil {
+					name = *profiles[i].BusinessName
+				}
+
+				if name == profileIdOrName {
+					selectedProfile = &profiles[i]
+					break
+				}
+			}
+		}
+
+		if selectedProfile == nil {
+			return fmt.Errorf("profile not found: %s", profileIdOrName)
+		}
+
+		// Determine profile name for display
+		displayName := ""
+		if selectedProfile.FirstName != nil && selectedProfile.LastName != nil {
+			displayName = *selectedProfile.FirstName + " " + *selectedProfile.LastName
+		} else if selectedProfile.BusinessName != nil {
+			displayName = *selectedProfile.BusinessName
+		} else {
+			displayName = selectedProfile.Email
+		}
+
+		// Save selected profile
+		selectedData := config.SelectedProfile{
+			ID:   selectedProfile.ID,
+			Name: displayName,
+			Type: selectedProfile.Type,
+		}
+
+		if err := config.SaveSelectedProfile(selectedData); err != nil {
+			return fmt.Errorf("failed to save selected profile: %w", err)
+		}
+
+		fmt.Printf("✓ Selected profile: %s (ID: %d, Type: %s)\n", displayName, selectedProfile.ID, selectedProfile.Type)
 		return nil
 	},
 }
