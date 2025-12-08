@@ -626,7 +626,7 @@ var sendToCmd = &cobra.Command{
 			fmt.Println("============================================")
 			fmt.Printf("Recipient:               %s (ID: %d)\n", targetRecipient.Name.FullName, targetRecipient.ID)
 			fmt.Printf("Recipient Currency:      %s\n", targetRecipient.Currency)
-			fmt.Printf("Source Amount:           %.2f %s\n", amount, currency)
+			fmt.Printf("Target Amount:           %.2f %s\n", amount, targetRecipient.Currency)
 			fmt.Printf("Profile ID:              %d\n", profileID)
 			fmt.Printf("Customer Transaction ID: %s\n", customerTxID)
 
@@ -645,12 +645,12 @@ var sendToCmd = &cobra.Command{
 		}
 
 		// Step 2: Create a quote
-		fmt.Printf("Creating quote: %.2f %s\n", amount, currency)
+		fmt.Printf("Creating quote: %.2f %s → %s\n", amount, currency, targetRecipient.Currency)
 		quoteReq := commands.NewQuoteRequest{
 			ProfileID:      profileID,
 			SourceCurrency: currency,
 			TargetCurrency: targetRecipient.Currency,
-			SourceAmount:   &amount,
+			TargetAmount:   &amount,
 		}
 
 		quote, err := commands.NewQuote(apiToken, quoteReq)
