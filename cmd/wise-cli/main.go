@@ -683,9 +683,10 @@ var newRecipientCmd = &cobra.Command{
 }
 
 var transfersCmd = &cobra.Command{
-	Use:   "transfers",
+	Use:   "transfers [search-term]",
 	Short: "List transfers",
-	Long:  "Fetch a list of your transfers from Wise (defaults to last 30 days)",
+	Long:  "Fetch a list of your transfers from Wise (defaults to last 30 days). Optional search-term matches both recipient name and reference (substring, case-insensitive).",
+	Args:  cobra.RangeArgs(0, 1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if apiToken == "" {
 			return fmt.Errorf("API token required: set --token flag or WISE_API_TOKEN env var")
@@ -694,6 +695,19 @@ var transfersCmd = &cobra.Command{
 		profileID, _ := cmd.Flags().GetInt("profile-id")
 		status, _ := cmd.Flags().GetString("status")
 		days, _ := cmd.Flags().GetInt("days")
+		recipientFilter, _ := cmd.Flags().GetString("recipient")
+		referenceFilter, _ := cmd.Flags().GetString("reference")
+
+		// If search term provided as positional arg, use it for both recipient and reference
+		if len(args) > 0 {
+			searchTerm := args[0]
+			if recipientFilter == "" {
+				recipientFilter = searchTerm
+			}
+			if referenceFilter == "" {
+				referenceFilter = searchTerm
+			}
+		}
 
 		// Calculate since date (default 30 days ago)
 		until := time.Now()
@@ -750,14 +764,31 @@ var transfersCmd = &cobra.Command{
 				reference = *t.Reference
 			}
 
-			sourceStr := fmt.Sprintf("%.2f %s", t.SourceValue, t.SourceCurrency)
-			targetStr := fmt.Sprintf("%.2f %s", t.TargetValue, t.TargetCurrency)
-
 			// Get recipient name
 			recipientName := recipientMap[t.TargetAccount]
 			if recipientName == "" {
 				recipientName = "-"
 			}
+
+			// Apply filters with substring matching
+			// If both filters are the same (from search-term), match if either recipient or reference matches
+			if recipientFilter != "" && referenceFilter != "" && recipientFilter == referenceFilter {
+				if !strings.Contains(strings.ToLower(recipientName), strings.ToLower(recipientFilter)) &&
+					!strings.Contains(strings.ToLower(reference), strings.ToLower(referenceFilter)) {
+					continue
+				}
+			} else {
+				// Otherwise apply filters independently
+				if recipientFilter != "" && !strings.Contains(strings.ToLower(recipientName), strings.ToLower(recipientFilter)) {
+					continue
+				}
+				if referenceFilter != "" && !strings.Contains(strings.ToLower(reference), strings.ToLower(referenceFilter)) {
+					continue
+				}
+			}
+
+			sourceStr := fmt.Sprintf("%.2f %s", t.SourceValue, t.SourceCurrency)
+			targetStr := fmt.Sprintf("%.2f %s", t.TargetValue, t.TargetCurrency)
 
 			// Parse created date
 			createdDate := t.Created[:10] // YYYY-MM-DD format
@@ -843,10 +874,22 @@ var sendToCmd = &cobra.Command{
 		}
 
 		var targetRecipient *queries.Recipient
+
+		// Try exact match first
 		for i := range recipients {
 			if recipients[i].Name.FullName == recipientName {
 				targetRecipient = &recipients[i]
 				break
+			}
+		}
+
+		// If not found, try substring match (case-insensitive)
+		if targetRecipient == nil {
+			for i := range recipients {
+				if strings.Contains(strings.ToLower(recipients[i].Name.FullName), strings.ToLower(recipientName)) {
+					targetRecipient = &recipients[i]
+					break
+				}
 			}
 		}
 
@@ -1028,4 +1071,6 @@ func init() {
 	transfersCmd.Flags().IntP("profile-id", "p", 0, "Profile ID to filter by (optional)")
 	transfersCmd.Flags().StringP("status", "s", "", "Filter by transfer status (e.g. incoming, outgoing, cancelled)")
 	transfersCmd.Flags().IntP("days", "d", 30, "Number of days to look back (default 30)")
+	transfersCmd.Flags().StringP("recipient", "r", "", "Filter by recipient name (substring match, case-insensitive)")
+	transfersCmd.Flags().String("reference", "", "Filter by reference (substring match, case-insensitive)")
 }
