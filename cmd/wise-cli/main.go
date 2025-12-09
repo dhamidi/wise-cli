@@ -38,6 +38,7 @@ func main() {
 	rootCmd.PersistentFlags().BoolVar(&refresh, "refresh", false, "Force refresh cache, bypass cached responses")
 
 	rootCmd.AddCommand(loginCmd)
+	rootCmd.AddCommand(meCmd)
 	rootCmd.AddCommand(profilesCmd)
 	rootCmd.AddCommand(selectProfileCmd)
 	rootCmd.AddCommand(recipientsCmd)
@@ -45,11 +46,52 @@ func main() {
 	rootCmd.AddCommand(newCmd)
 	rootCmd.AddCommand(sendToCmd)
 	rootCmd.AddCommand(transfersCmd)
+	rootCmd.AddCommand(agentsCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+var meCmd = &cobra.Command{
+	Use:   "me",
+	Short: "Get authenticated user",
+	Long:  "Retrieve your user profile and verify login status",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if apiToken == "" {
+			return fmt.Errorf("API token required: set --token flag or WISE_API_TOKEN env var")
+		}
+
+		user, err := queries.GetMe(apiToken)
+		if err != nil {
+			return fmt.Errorf("failed to get user: %w", err)
+		}
+
+		// Format output
+		fmt.Println("User Details:")
+		fmt.Println("=============")
+		fmt.Printf("ID:                   %d\n", user.ID)
+		fmt.Printf("Email:                %s\n", user.Email)
+		fmt.Printf("Name:                 %s\n", user.Name)
+		fmt.Printf("Active:               %v\n", user.Active)
+		fmt.Printf("First Name:           %s\n", user.Details.FirstName)
+		fmt.Printf("Last Name:            %s\n", user.Details.LastName)
+		if user.Details.PhoneNumber != "" {
+			fmt.Printf("Phone:                %s\n", user.Details.PhoneNumber)
+		}
+		if user.Details.DateOfBirth != nil {
+			fmt.Printf("Date of Birth:        %s\n", *user.Details.DateOfBirth)
+		}
+		if user.Details.Occupation != nil {
+			fmt.Printf("Occupation:           %s\n", *user.Details.Occupation)
+		}
+		if user.Details.Avatar != nil && *user.Details.Avatar != "" {
+			fmt.Printf("Avatar:               %s\n", *user.Details.Avatar)
+		}
+
+		return nil
+	},
 }
 
 var profilesCmd = &cobra.Command{
@@ -811,6 +853,22 @@ var transfersCmd = &cobra.Command{
 	},
 }
 
+var agentsCmd = &cobra.Command{
+	Use:   "agents",
+	Short: "AI agent tools",
+	Long:  "Tools and information for AI agents",
+}
+
+var agentsMdCmd = &cobra.Command{
+	Use:   "md",
+	Short: "Print agent instructions",
+	Long:  "Print instructions for AI agents to stdout as markdown",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		fmt.Print(queries.GetInstructions())
+		return nil
+	},
+}
+
 var sendToCmd = &cobra.Command{
 	Use:   "send-to <recipient-name> <amount> <currency> [reference]",
 	Short: "Send money to a recipient",
@@ -1013,6 +1071,8 @@ func init() {
 	newCmd.AddCommand(newQuoteCmd)
 	newCmd.AddCommand(newTransferCmd)
 	newCmd.AddCommand(newRecipientCmd)
+
+	agentsCmd.AddCommand(agentsMdCmd)
 
 	newQuoteCmd.Flags().IntP("profile-id", "p", 0, "Profile ID (required)")
 	newQuoteCmd.MarkFlagRequired("profile-id")
