@@ -869,6 +869,46 @@ var agentsMdCmd = &cobra.Command{
 	},
 }
 
+var agentsSkillCmd = &cobra.Command{
+	Use:   "skill",
+	Short: "Create a Claude skill from agent instructions",
+	Long:  "Create a .claude/skills/send-money directory with SKILL.md containing agent instructions",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		skillPath := ".claude/skills/send-money"
+		skillFile := skillPath + "/SKILL.md"
+		force, _ := cmd.Flags().GetBool("force")
+
+		// Check if skill directory already exists
+		if _, err := os.Stat(skillPath); err == nil {
+			if !force {
+				return fmt.Errorf("skill already exists at %s (use --force to overwrite)", skillPath)
+			}
+		}
+
+		// Create directory
+		if err := os.MkdirAll(skillPath, 0755); err != nil {
+			return fmt.Errorf("failed to create skill directory: %w", err)
+		}
+
+		// Generate SKILL.md content
+		skillContent := `---
+name: send-money
+description: Prepare and execute money transfers using the Wise API. Use when helping users send money internationally, create transfer quotes, or manage recipients.
+---
+# Send Money with Wise
+
+` + queries.GetInstructions()
+
+		// Write SKILL.md file
+		if err := os.WriteFile(skillFile, []byte(skillContent), 0644); err != nil {
+			return fmt.Errorf("failed to write SKILL.md: %w", err)
+		}
+
+		fmt.Printf("Created Wise skill at %s\n", skillPath)
+		return nil
+	},
+}
+
 var sendToCmd = &cobra.Command{
 	Use:   "send-to <recipient-name> <amount> <currency> [reference]",
 	Short: "Send money to a recipient",
@@ -1073,6 +1113,9 @@ func init() {
 	newCmd.AddCommand(newRecipientCmd)
 
 	agentsCmd.AddCommand(agentsMdCmd)
+	agentsCmd.AddCommand(agentsSkillCmd)
+
+	agentsSkillCmd.Flags().BoolP("force", "f", false, "Force creation even if skill already exists")
 
 	newQuoteCmd.Flags().IntP("profile-id", "p", 0, "Profile ID (required)")
 	newQuoteCmd.MarkFlagRequired("profile-id")
