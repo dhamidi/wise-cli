@@ -26,6 +26,7 @@ type Recipient struct {
 	Status          bool   `json:"status"`
 	Details         any    `json:"details"`
 	Hash            string `json:"hash"`
+	AccountSummary  string `json:"accountSummary"`
 }
 
 // GetAccountNumber extracts account number from recipient details

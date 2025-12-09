@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/dhamidi/wise-cli/commands"
 	"github.com/dhamidi/wise-cli/config"
@@ -43,6 +44,7 @@ func main() {
 	rootCmd.AddCommand(quoteCmd)
 	rootCmd.AddCommand(newCmd)
 	rootCmd.AddCommand(sendToCmd)
+	rootCmd.AddCommand(transfersCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -680,6 +682,104 @@ var newRecipientCmd = &cobra.Command{
 	},
 }
 
+var transfersCmd = &cobra.Command{
+	Use:   "transfers",
+	Short: "List transfers",
+	Long:  "Fetch a list of your transfers from Wise (defaults to last 30 days)",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if apiToken == "" {
+			return fmt.Errorf("API token required: set --token flag or WISE_API_TOKEN env var")
+		}
+
+		profileID, _ := cmd.Flags().GetInt("profile-id")
+		status, _ := cmd.Flags().GetString("status")
+		days, _ := cmd.Flags().GetInt("days")
+
+		// Calculate since date (default 30 days ago)
+		until := time.Now()
+		since := until.AddDate(0, 0, -days)
+
+		req := queries.ListTransfersRequest{
+			ProfileID: profileID,
+			Status:    status,
+			Since:     &since,
+			Until:     &until,
+			Limit:     100,
+		}
+
+		transfers, err := queries.ListTransfersWithRefresh(apiToken, req, refresh)
+		if err != nil {
+			return fmt.Errorf("failed to list transfers: %w", err)
+		}
+
+		if len(transfers) == 0 {
+			fmt.Println("No transfers found")
+			return nil
+		}
+
+		// Fetch recipients to build ID -> Name map
+		recipientMap := make(map[int]string)
+		reqRecipients := queries.ListRecipientsRequest{Size: 1000}
+		if profileID != 0 {
+			reqRecipients.ProfileID = profileID
+		}
+		recipients, err := queries.ListRecipientsWithRefresh(apiToken, reqRecipients, refresh)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to fetch recipients: %v\n", err)
+		} else {
+			for _, r := range recipients {
+				name := r.Name.FullName
+				if name == "" {
+					name = r.AccountSummary
+				}
+				if name == "" {
+					name = fmt.Sprintf("%s %s", r.Name.GivenName, r.Name.FamilyName)
+					name = strings.TrimSpace(name)
+				}
+				recipientMap[r.ID] = name
+			}
+		}
+
+		// Format output
+		fmt.Printf("%-10s %-20s %-15s %-30s %-15s %-20s %-10s\n", "ID", "Date", "Source", "Recipient", "Target", "Reference", "Status")
+		fmt.Println(strings.Repeat("-", 135))
+
+		for _, t := range transfers {
+			reference := "-"
+			if t.Reference != nil && *t.Reference != "" {
+				reference = *t.Reference
+			}
+
+			sourceStr := fmt.Sprintf("%.2f %s", t.SourceValue, t.SourceCurrency)
+			targetStr := fmt.Sprintf("%.2f %s", t.TargetValue, t.TargetCurrency)
+
+			// Get recipient name
+			recipientName := recipientMap[t.TargetAccount]
+			if recipientName == "" {
+				recipientName = "-"
+			}
+
+			// Parse created date
+			createdDate := t.Created[:10] // YYYY-MM-DD format
+			if len(t.Created) > 10 {
+				createdDate = t.Created[:10]
+			}
+
+			fmt.Printf("%-10d %-20s %-15s %-30s %-15s %-20s %-10s\n",
+				t.ID,
+				createdDate,
+				sourceStr,
+				recipientName,
+				targetStr,
+				reference,
+				t.Status,
+			)
+		}
+
+		return nil
+	},
+}
+
 var sendToCmd = &cobra.Command{
 	Use:   "send-to <recipient-name> <amount> <currency> [reference]",
 	Short: "Send money to a recipient",
@@ -923,4 +1023,9 @@ func init() {
 	newRecipientCmd.Flags().StringP("account-type", "", "", "Account type: CHECKING or SAVINGS (required for us type)")
 	newRecipientCmd.Flags().StringP("email", "", "", "Email address (required for email type)")
 	newRecipientCmd.Flags().StringP("legal-type", "", "", "Legal type: PRIVATE or BUSINESS (optional)")
+
+	// Transfers command flags
+	transfersCmd.Flags().IntP("profile-id", "p", 0, "Profile ID to filter by (optional)")
+	transfersCmd.Flags().StringP("status", "s", "", "Filter by transfer status (e.g. incoming, outgoing, cancelled)")
+	transfersCmd.Flags().IntP("days", "d", 30, "Number of days to look back (default 30)")
 }
