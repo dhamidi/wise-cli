@@ -6,7 +6,7 @@ A Go CLI client for using the Wise API to send money.
 
 If you haven't logged in yet, run:
 ```
-wise-cli login
+wise login
 ```
 
 This will save your personal API token for use with all commands.
@@ -18,7 +18,7 @@ https://docs.wise.com/api-reference#authentication
 
 Check your login status and verify your credentials:
 ```
-wise-cli me
+wise me
 ```
 
 This will display your user information and confirm you are authenticated.
@@ -28,27 +28,27 @@ This will display your user information and confirm you are authenticated.
 ### Quick Send
 Send money to a recipient by name:
 ```
-wise-cli send-to "Recipient Name" 100 USD
+wise send-to "Recipient Name" 100 USD
 ```
 
 With a payment reference:
 ```
-wise-cli send-to "Recipient Name" 100 USD "Payment reference"
+wise send-to "Recipient Name" 100 USD "Payment reference"
 ```
 
 Or use the `--reference` flag:
 ```
-wise-cli send-to "Recipient Name" 100 USD --reference "Payment reference"
+wise send-to "Recipient Name" 100 USD --reference "Payment reference"
 ```
 
 ### Prerequisites
-- A Wise profile (use `wise-cli select-profile <profile-id>` to set default)
+- A Wise profile (use `wise select-profile <profile-id>` to set default)
 - A recipient account (create one if needed, see below)
 
 ### Dry Run
 Test the transfer without creating it:
 ```
-wise-cli send-to "Recipient Name" 100 USD --dry-run
+wise send-to "Recipient Name" 100 USD --dry-run
 ```
 
 ## Creating Recipients
@@ -57,7 +57,7 @@ Create a recipient account before sending money to them.
 
 ### UK Recipient (Sort Code)
 ```
-wise-cli new recipient \
+wise new recipient \
   --profile-id 123 \
   --currency GBP \
   --type sort_code \
@@ -68,7 +68,7 @@ wise-cli new recipient \
 
 ### IBAN Recipient
 ```
-wise-cli new recipient \
+wise new recipient \
   --profile-id 123 \
   --currency EUR \
   --type iban \
@@ -78,7 +78,7 @@ wise-cli new recipient \
 
 ### US Recipient
 ```
-wise-cli new recipient \
+wise new recipient \
   --profile-id 123 \
   --currency USD \
   --type us \
@@ -90,7 +90,7 @@ wise-cli new recipient \
 
 ### Email Recipient
 ```
-wise-cli new recipient \
+wise new recipient \
   --profile-id 123 \
   --currency USD \
   --type email \
@@ -101,17 +101,17 @@ wise-cli new recipient \
 ### List Recipients
 See existing recipients:
 ```
-wise-cli recipients
+wise recipients
 ```
 
 Filter by currency:
 ```
-wise-cli recipients --currency GBP
+wise recipients --currency GBP
 ```
 
 Filter by type:
 ```
-wise-cli recipients --type iban
+wise recipients --type iban
 ```
 
 ## Listing Transfers
@@ -119,47 +119,47 @@ wise-cli recipients --type iban
 ### List Recent Transfers
 List transfers from the last 30 days:
 ```
-wise-cli transfers
+wise transfers
 ```
 
 ### Search Transfers
 Search by recipient name or reference:
 ```
-wise-cli transfers "search term"
+wise transfers "search term"
 ```
 
 ### Filter by Status
 ```
-wise-cli transfers --status incoming
-wise-cli transfers --status outgoing
-wise-cli transfers --status cancelled
+wise transfers --status incoming
+wise transfers --status outgoing
+wise transfers --status cancelled
 ```
 
 ### Filter by Date Range
 ```
-wise-cli transfers --days 60
+wise transfers --days 60
 ```
 
 ### Filter by Profile
 ```
-wise-cli transfers --profile-id 123
+wise transfers --profile-id 123
 ```
 
 ## Profile Management
 
 ### List Profiles
 ```
-wise-cli profiles
+wise profiles
 ```
 
 ### Set Default Profile
 ```
-wise-cli select-profile <profile-id>
+wise select-profile <profile-id>
 ```
 
 Or by name:
 ```
-wise-cli select-profile "Personal Account"
+wise select-profile "Personal Account"
 ```
 
 ## Wise API Reference

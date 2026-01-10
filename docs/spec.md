@@ -9,7 +9,7 @@ Wise CLI is a command-line client for the Wise API that enables users to prepare
 The CLI supports three methods for providing API credentials:
 
 1. **Environment variable**: `WISE_API_TOKEN` (highest priority)
-2. **Cached token**: Stored in `~/.cache/wise-cli/token` after running `wise-cli login`
+2. **Cached token**: Stored in `~/.cache/wise-cli/token` after running `wise login`
 3. **Command-line flag**: `--token` for one-off usage
 
 Tokens are stored with restricted permissions (0600) for security.
